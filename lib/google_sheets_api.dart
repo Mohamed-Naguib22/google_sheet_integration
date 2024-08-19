@@ -39,7 +39,7 @@ class GoogleSheetsApi {
       var response =
           await sheets.spreadsheets.values.get(spreadsheetId!, range);
 
-      return response;
+      return response.values;
     } finally {
       client.close();
     }
@@ -67,6 +67,24 @@ class GoogleSheetsApi {
         spreadsheetId!,
         range,
         valueInputOption: 'RAW',
+      );
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> clearGoogleSheetData() async {
+    extractGidAndIdFromUrl(Constants.URL);
+    final client = await _getClientViaServiceAccount();
+    final sheets = SheetsApi(client);
+
+    try {
+      final sheet = await _getSheet(client, sheets);
+      final range = '${sheet?.properties?.title}';
+      await sheets.spreadsheets.values.clear(
+        ClearValuesRequest(),
+        spreadsheetId!,
+        range,
       );
     } finally {
       client.close();

@@ -17,9 +17,12 @@ class WebViewScreen extends StatefulWidget {
 }
 
 class _WebViewScreenState extends State<WebViewScreen> {
+  GoogleSheetsApi googleSheetsApiData = GoogleSheetsApi();
+
   @override
   void initState() {
     super.initState();
+    googleSheetsApiData.clearGoogleSheetData();
     _fetchAndInsertData();
   }
 
@@ -33,31 +36,96 @@ class _WebViewScreenState extends State<WebViewScreen> {
         ..style.width = '800px'
         ..style.height = '800px',
     );
-    return const Scaffold(
-      body: HtmlElementView(
-        viewType: 'iframeElement',
+    return Scaffold(
+      body: Column(
+        children: [
+          const Expanded(
+            child: HtmlElementView(
+              viewType: 'iframeElement',
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _saveData();
+            },
+            child: const Text('Submit'),
+          ),
+        ],
       ),
     );
   }
 
   Future<void> _fetchAndInsertData() async {
     try {
-      final apiResponse = await Dio()
-          .get('https://admission.must.edu.eg/UGAPI/api/College/GetAll');
+      final apiResponse =
+          await Dio().get('https://localhost:44384/api/Assignment/GetAll');
       List<List<Object>> values = [];
 
       for (var item in apiResponse.data) {
         List<Object> row = [
+          item['id'],
           item['name'],
-          item['bannerCode'],
+          item['description'],
         ];
         values.add(row);
       }
 
-      GoogleSheetsApi googleSheetsApiData = GoogleSheetsApi();
       await googleSheetsApiData.insertDataIntoGoogleSheet(values);
     } catch (e) {
       print(e.toString());
     }
+  }
+
+  Future<void> _saveData() async {
+    try {
+      final values = await googleSheetsApiData.getGoogleSheetData();
+      List<Assignment> assignments = [];
+
+      for (dynamic row in values) {
+        assignments.add(
+          Assignment(
+            id: row[0],
+            name: row[1],
+            description: row[2],
+          ),
+        );
+      }
+
+      List<Map<String, dynamic>> assignmentMaps =
+          assignments.map((assignment) => assignment.toJson()).toList();
+
+      final response = await Dio().put(
+        "https://localhost:44384/api/Assignment/UpdateMany",
+        data: assignmentMaps,
+        options: Options(
+          contentType: Headers.jsonContentType,
+        ),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.green,
+          content: Text("edited successfully"),
+        ),
+      );
+      print(response);
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+}
+
+class Assignment {
+  final String id;
+  final String name;
+  final String description;
+
+  Assignment({required this.id, required this.name, required this.description});
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+    };
   }
 }
