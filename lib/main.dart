@@ -18,12 +18,25 @@ class WebViewScreen extends StatefulWidget {
 
 class _WebViewScreenState extends State<WebViewScreen> {
   GoogleSheetsApi googleSheetsApiData = GoogleSheetsApi();
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    googleSheetsApiData.clearGoogleSheetData();
-    _fetchAndInsertData();
+    _clearAndFetchData();
+  }
+
+  Future<void> _clearAndFetchData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    await googleSheetsApiData.clearGoogleSheetData();
+    await _fetchAndInsertData();
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   @override
@@ -32,26 +45,29 @@ class _WebViewScreenState extends State<WebViewScreen> {
       'iframeElement',
       (int viewId) => html.IFrameElement()
         ..src = Constants.URL
-        ..style.border = '2px solid black'
+        ..style.border = '1px solid black'
         ..style.width = '800px'
         ..style.height = '800px',
     );
     return Scaffold(
-      body: Column(
-        children: [
-          const Expanded(
-            child: HtmlElementView(
-              viewType: 'iframeElement',
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Expanded(
+                  child: HtmlElementView(
+                    viewType: 'iframeElement',
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _saveData();
+                  },
+                  child: const Text('Submit'),
+                ),
+              ],
             ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _saveData();
-            },
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -78,6 +94,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   Future<void> _saveData() async {
     try {
+      setState(() {
+        _isLoading = true;
+      });
       final values = await googleSheetsApiData.getGoogleSheetData();
       List<Assignment> assignments = [];
 
@@ -94,7 +113,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       List<Map<String, dynamic>> assignmentMaps =
           assignments.map((assignment) => assignment.toJson()).toList();
 
-      final response = await Dio().put(
+      await Dio().put(
         "https://localhost:44384/api/Assignment/UpdateMany",
         data: assignmentMaps,
         options: Options(
@@ -108,9 +127,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
           content: Text("edited successfully"),
         ),
       );
-      print(response);
     } catch (e) {
       print(e.toString());
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 }
